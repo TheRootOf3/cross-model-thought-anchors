@@ -1,0 +1,31 @@
+[project]
+name = "cross-model-nudge-transfer"
+version = "0.1.0"
+description = "Cross-model thought anchors: does CoT sentence importance transfer between models?"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    # antlr4 is pinned to 4.11 because that is the runtime sympy's LaTeX parser expects; a newer
+    # runtime makes parse_latex raise, and answer grading then falls back to string comparison.
+    "antlr4-python3-runtime==4.11.*",
+    "hf-transfer>=0.1.9",
+    "hf-xet>=1.6.0",
+    "matplotlib>=3.11.1",
+    "numpy>=2",
+    "pandas>=3.0.5",
+    "pyarrow>=25.0.1",
+    "requests>=2.32",
+    "scipy>=1.18.1",
+    "sentence-transformers>=6.0.1",
+    # sympy grades the mathematical answers (src/common/answers.check_answer). It arrives
+    # transitively with torch as well, but it is declared here because the grading - and so every
+    # accuracy in the project - silently degrades to string equality without it.
+    "sympy>=1.13",
+    "transformers>=5.16.1",
+    # vLLM is only ever used as the `vllm serve` binary; nothing in scripts/ or src/ imports it.
+    # It is listed here because serve/serve_model.sh looks for .venv/bin/vllm.
+    "vllm>=0.28.0",
+]
+
+[tool.uv]
+# Scripts are run directly (python scripts/NN_name.py); nothing to build/install.
+package = false

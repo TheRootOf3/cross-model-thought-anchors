@@ -1,0 +1,183 @@
+{
+  "_comment": "Model registry for serve/serve_model.sh and for every client script. One entry per model key. `port` is a property of the MODEL, not of the GPU: a client always addresses a model at the same URL, so when the model is not currently served it gets connection-refused rather than a different model's answers. Clients must still assert GET /v1/models returns the expected key before generating. Prefill/chat-template fields are added by the prep step (01_prefill_probe.py) once the exact strings are frozen in doc/setup.md.",
+  "host": "127.0.0.1",
+  "default_gpu": 0,
+  "default_gpu_memory_utilization": 0.9,
+  "roles": {
+    "_note": "Role names used throughout the code. B_near is the reader from the same model family as the writer (Qwen), B_far the reader from a different family (gpt-oss); the writer itself is A. The two were picked by the saturation screen, not in advance - the notes below record which candidates were tried and why the survivors won.",
+    "_comment": "Filled/confirmed during prep. the different-family reader is chosen in the pre-registered design from the two candidates.",
+    "A": "r1-distill-14b",
+    "B_near": "qwen3-1.7b",
+    "B_near_fallback": null,
+    "B_far": "gpt-oss-20b",
+    "B_far_candidates": [
+      "gpt-oss-20b",
+      "olmo3-7b-think"
+    ],
+    "_B_far_note": "decided 2026-09-08 after the n=32 probe grid (Probe 5): both candidates continue A's block and sit ~0.2 below A on problem_330 (gpt-oss 0.38-0.50, Olmo 0.45-0.54 answered-only, within each other's Wilson intervals); gpt-oss is 3-5x cheaper per rollout; it is the only model that ever leaves A's block (14/1024 re-opens into harmony's commentary channel, all in this model), which the probe's detector now catches. Olmo remains the fallback. the same-family reader is decided by the reader screen saturation screen per the pre-registered design (default qwen3.5-9b).",
+    "B_near_candidates_extra": [
+      "qwen3-4b-thinking-2507",
+      "qwen3.5-2b"
+    ],
+    "_B_near_extra_note": "2026-09-09: the reader screen found Qwen3.5-9B and 4B saturating high (1/20 in band each). Added two weaker/different near candidates to probe (prefilled CoT, 32k) and screen. Decision on the same-family reader pending the author.",
+    "B_near_candidates_tier2": [
+      "qwen3.5-0.8b",
+      "qwen3-1.7b"
+    ],
+    "_B_near_note": "decided 2026-09-09 13:55 UTC after the reader screens: Qwen3-1.7B is the only near candidate clearing the >= 10-in-band rule (11/20; floor on A's hard problems, ceiling on the easy ones, undecided on A's mid-range). Qwen3.5-9B/4B/2B/0.8B and Qwen3-4B-Thinking-2507 saturate high (or loop). Trace sets are per reader (the pre-registered design changelog 2026-09-09): the 1.7B shares 5 in-band problems with gpt-oss. The earlier the pre-registered design rule (9B, fallback 4B) is superseded; no fallback remains."
+  },
+  "models": {
+    "r1-distill-14b": {
+      "hf_path": "deepseek-ai/DeepSeek-R1-Distill-Qwen-14B",
+      "role": "A (author; local runs only: the calibration run calibration, Phase 2 trace generation)",
+      "reasoning_parser": "deepseek_r1",
+      "port": 8001,
+      "vllm_flags": [],
+      "recommended_sampling": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "_source": "generation_config.json; README:121,209"
+      }
+    },
+    "qwen3.5-9b": {
+      "hf_path": "Qwen/Qwen3.5-9B",
+      "role": "the same-family reader (primary)",
+      "reasoning_parser": "qwen3",
+      "port": 8002,
+      "vllm_flags": [
+        "--language-model-only",
+        "--max-num-seqs",
+        "256"
+      ],
+      "recommended_sampling": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "_source": "README:833 'Thinking mode for general tasks' (no generation_config.json in snapshot)"
+      },
+      "_max_num_seqs_note": "Hybrid Mamba model: vLLM 0.28 needs one Mamba cache block per decode sequence and refuses to start when its default max_num_seqs (1024) exceeds the blocks that fit - at --gpu-memory-utilization 0.45 on a 96 GB card only 677 fit ('max_num_seqs (1024) exceeds available Mamba cache blocks (677)', runs/serve/qwen3.5-9b.log 2026-09-09 00:17). 256 is above anything a script sends (the screen: 4 problems x 40 samples = 160). Batch-size limit only; does not change sampling. Added 2026-09-09 (the reader screen)."
+    },
+    "qwen3.5-4b": {
+      "hf_path": "Qwen/Qwen3.5-4B",
+      "role": "the same-family reader (fallback)",
+      "reasoning_parser": "qwen3",
+      "port": 8003,
+      "vllm_flags": [
+        "--language-model-only",
+        "--max-num-seqs",
+        "256"
+      ],
+      "recommended_sampling": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "_source": "README:833 'Thinking mode for general tasks' (same card as 9B)"
+      },
+      "_max_num_seqs_note": "Hybrid Mamba model: vLLM 0.28 needs one Mamba cache block per decode sequence and refuses to start when its default max_num_seqs (1024) exceeds the blocks that fit - at --gpu-memory-utilization 0.45 on a 96 GB card only 677 fit ('max_num_seqs (1024) exceeds available Mamba cache blocks (677)', runs/serve/qwen3.5-9b.log 2026-09-09 00:17). 256 is above anything a script sends (the screen: 4 problems x 40 samples = 160). Batch-size limit only; does not change sampling. Added 2026-09-09 (the reader screen)."
+    },
+    "gpt-oss-20b": {
+      "hf_path": "openai/gpt-oss-20b",
+      "role": "the different-family reader (candidate)",
+      "reasoning_parser": "openai_gptoss",
+      "port": 8004,
+      "vllm_flags": [
+        "--attention-backend",
+        "TRITON_ATTN"
+      ],
+      "_flags_note": "TRITON_ATTN: vLLM's default FLASHINFER attention cannot JIT for sm120 with the system CUDA 12.8 (the project log 2026-09-08). Env var VLLM_ATTENTION_BACKEND is ignored in vLLM 0.28; only the CLI flag works. decided 2026-09-08.",
+      "_reasoning_note": "The harmony template stamps 'Reasoning: medium' and 'Current date: <today>' into the system message. decided 2026-09-08: keep the template's defaults (reasoning_effort medium, date as rendered); frozen prompt strings in doc/setup.md carry the probe day's date.",
+      "recommended_sampling": {
+        "temperature": 1.0,
+        "top_p": 1.0,
+        "_source": "no published recommendation (model card, OpenAI cookbook, vLLM recipe checked 2026-09-08); generation_config.json is do_sample only = framework defaults; cookbook example uses temperature=1"
+      }
+    },
+    "olmo3-7b-think": {
+      "hf_path": "allenai/Olmo-3-7B-Think",
+      "role": "the different-family reader (fallback candidate)",
+      "reasoning_parser": "olmo3",
+      "port": 8005,
+      "vllm_flags": [],
+      "recommended_sampling": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "_source": "generation_config.json; README:170-171"
+      }
+    },
+    "qwen3-4b-thinking-2507": {
+      "hf_path": "Qwen/Qwen3-4B-Thinking-2507",
+      "role": "the same-family reader candidate (added 2026-09-09, human request after the reader screen)",
+      "reasoning_parser": "qwen3",
+      "port": 8006,
+      "vllm_flags": [],
+      "recommended_sampling": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "_source": "README:208 'We suggest using Temperature=0.6, TopP=0.95, TopK=20, and MinP=0'; README:209 leaves presence_penalty optional (0-2) - not set"
+      },
+      "_note": "Plain Qwen3 transformer (Qwen3ForCausalLM), thinking-only: the chat template ends '<think>\\n' regardless of enable_thinking; no trim of the user content (INSTRUCTION's trailing space survives)."
+    },
+    "qwen3.5-2b": {
+      "hf_path": "Qwen/Qwen3.5-2B",
+      "role": "the same-family reader candidate (added 2026-09-09, human request after the reader screen)",
+      "reasoning_parser": "qwen3",
+      "port": 8007,
+      "vllm_flags": [
+        "--language-model-only",
+        "--max-num-seqs",
+        "256"
+      ],
+      "recommended_sampling": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "_source": "README:707 'Thinking mode for text tasks: temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=1.5' (also :844-849 example with enable_thinking=True, :972-973); identical to the 9B/4B family settings. README:585: the 2B 'operates in non-thinking mode by default' - we force thinking via the template (enable_thinking=True -> '<think>\\n'). README:893 warns the 2B 'is more prone to entering thinking loops' under these settings - expect cap hits."
+      },
+      "_note": "Same family as qwen3.5-9b/4b (Qwen3_5ForConditionalGeneration, linear-attention hybrid, multimodal): same serving flags; template trims user content ('Solution:<|im_end|>') and ends '<think>\\n'."
+    },
+    "qwen3.5-0.8b": {
+      "hf_path": "Qwen/Qwen3.5-0.8B",
+      "role": "the same-family reader candidate, tier 2 (2026-09-09: run only if the 2B and the 4B-Thinking-2507 saturate)",
+      "reasoning_parser": "qwen3",
+      "port": 8008,
+      "vllm_flags": [
+        "--language-model-only",
+        "--max-num-seqs",
+        "256"
+      ],
+      "recommended_sampling": {
+        "temperature": 1.0,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "presence_penalty": 1.5,
+        "_source": "README:707 'Thinking mode for text tasks: temperature=1.0, top_p=0.95, top_k=20, min_p=0.0, presence_penalty=1.5'; README:585: non-thinking by default, we pass enable_thinking=True (template ends '<think>\\n')."
+      },
+      "_note": "Same family as the 2B (Qwen3_5ForConditionalGeneration, 24 layers, linear-attention hybrid, multimodal): same flags."
+    },
+    "qwen3-1.7b": {
+      "hf_path": "Qwen/Qwen3-1.7B",
+      "role": "the same-family reader (chosen 2026-09-09 on the reader screen)",
+      "reasoning_parser": "qwen3",
+      "port": 8009,
+      "vllm_flags": [],
+      "recommended_sampling": {
+        "temperature": 0.6,
+        "top_p": 0.95,
+        "top_k": 20,
+        "min_p": 0.0,
+        "_source": "README:132/:275 'For thinking mode (enable_thinking=True), use Temperature=0.6, TopP=0.95, TopK=20, and MinP=0' (also generation_config.json)"
+      },
+      "_note": "Original Qwen3 hybrid-thinking model (Qwen3ForCausalLM, 28 layers). Its template with enable_thinking=True ends '<|im_start|>assistant\\n' WITHOUT '<think>' - the model writes the opener itself - so _OPENER_AFTER_TEMPLATE appends '<think>\\n' (as for A's raw prompt). User content not trimmed."
+    }
+  },
+  "_sampling_note": "recommended_sampling = each model's own shipped/recommended generation settings. Since the 2026-09-08 decision (the design changelog, configs/phase1.json reader_sampling.per_model) every script samples each reader with these, via src/common/sampling.reader_sampling; the cap comes from phase1.json. Keys beyond temperature/top_p must be vLLM sampling fields (sampling.EXTRA_KEYS)."
+}

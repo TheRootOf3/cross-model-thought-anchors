@@ -1,0 +1,9 @@
+runs/*
+data/*
+plots/*
+doc/*
+!*/.gitkeep
+!plots/fonts/
+!plots/fonts/*
+__pycache__/
+.venv
