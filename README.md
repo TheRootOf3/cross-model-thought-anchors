@@ -6,6 +6,9 @@ code behind a short exploratory study of that question, run on DeepSeek-R1-Disti
 released MATH traces (Phase 1) and on [Thought Branches](https://arxiv.org/abs/2510.27484)' hinted
 multiple-choice traces (Phase 2).
 
+**Note.** This 20-hour project was conducted towards Neel Nanda’s Winter 2027 MATS stream. The number of evaluated models and CoT traces is limited; the findings, while true here, may not apply universally across all reasoning models. 
+
+- **Report** [blog post](https://www.lesswrong.com/posts/EmcEPCFSKKMtCBBkw/thought-anchors-don-t-transfer-between-models).
 - **Data:** a separate bundle — [here](https://drive.google.com/drive/folders/1aQog9xv2dYPry2iSRUwFGGIVy2Rlr7ny?usp=drive_link) — with the raw rollouts (258,220 of them,
   688 MB gzipped), the aggregates computed from them, and every figure with the values it plots.
   It is not in this repository; two of its files exceed GitHub's per-file limit.
